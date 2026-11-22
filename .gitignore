@@ -1,0 +1,4 @@
+*.dll
+*.o
+examples/mod-platform/platform/
+examples/mod-platform/build/
