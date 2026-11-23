@@ -7,7 +7,10 @@ out of the way), and any other mod can add its own entries to her menu.
 ## For players
 
 With Extra Options for FH3 installed, put `ANNA.dll` in `mods\Forza Horizon 3\ANNA\plugins\` next to
-`azimuth.exe`. ANNA adds:
+`azimuth.exe`, and the `media` folder beside `plugins` (so that
+`mods\Forza Horizon 3\ANNA\media\UI\Controls\HUDAnnaControl.xaml` exists). That file is the game's ANNA control
+with scroll arrows: a list of more than 7 entries shows 6 at a time and scrolls, with an arrow above and below.
+Without it ANNA still works, but the scroll rows show as plain text. ANNA adds:
 
 - **Car** (in ANNA's main list):
   - **Auto Drive**: the game's AI drives your car along the route set on the map or by ANNA.

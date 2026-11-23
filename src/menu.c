@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 
-enum { MAX_ENTRIES = 256, KEY_CHARS = 64, LABEL_CHARS = 128, MAX_SHOWN = 32, MAX_DEPTH = 8 };
+enum { MAX_ENTRIES = 32767, KEY_CHARS = 64, LABEL_CHARS = 128, MAX_SHOWN = 256, MAX_DEPTH = 8, ROWS = 7, WINDOW = 6 };
 
 typedef struct {
     char key[KEY_CHARS], parent[KEY_CHARS], label[LABEL_CHARS];
@@ -171,7 +171,7 @@ static Name name_of(int index) {
         entry->variant ^= 1;
     }
     Name name = {"EO_", 3};
-    char digits[4];
+    char digits[5]; /* up to 99999: MAX_ENTRIES is 32767 */
     unsigned count = 0, value = (unsigned)index;
     do digits[count++] = (char)('0' + value % 10); while ((value /= 10) && count < sizeof(digits));
     while (count) name.text[name.size++] = digits[--count];
@@ -188,7 +188,7 @@ static int entry_of(const MsvcString *name) {
     if (text[size - 1] == '+') --size;
     int index = 0;
     for (size_t i = 3; i < size; ++i) {
-        if (text[i] < '0' || text[i] > '9' || i > 6) return -1;
+        if (text[i] < '0' || text[i] > '9' || i > 7) return -1;
         index = index * 10 + (text[i] - '0');
     }
     return index < entry_count ? index : -1;
@@ -201,6 +201,56 @@ static unsigned list_names(int list, Name *names, unsigned max) {
     for (LONG i = 0; i < total && count < max; ++i)
         if (parent_is(&entries[i], list) && visible((int)i, 0)) names[count++] = name_of((int)i);
     return count;
+}
+
+/* ---- The window ---------------------------------------------------------------------------------------
+   A list of up to ROWS entries shows whole. A longer one shows WINDOW of them, scrolling between two marker rows, both there whenever it
+   scrolls (blank at an end with nothing more) so the rows' heights, and where the list sits, stay the same as
+   it scrolls. The markers are named EO_UP and EO_UN (nothing above), EO_DN and EO_DX (nothing below), and
+   labelled ANNA_MORE_UP, ANNA_MORE_DOWN and ANNA_MORE_NONE, which the control's row template
+   (media\UI\Controls\HUDAnnaControl.xaml) draws as the scroll arrow or nothing. The game moves the highlight
+   onto a marker like onto any row; scroll_tick answers on the next frame, scrolling and putting it back on an
+   entry. The main list isn't windowed: the game's own commands follow our entries in it. */
+static int win_first;    /* the first entry showing, in the list `current` */
+static int win_row = -1; /* the row the highlight was last on, in that list; -1: not seen yet */
+
+static void set_current(int list) {
+    current = list;
+    win_first = 0;
+    win_row = -1;
+}
+
+static Name marker_name(const char *text) {
+    Name name = {{0}, 5};
+    memory_copy(name.text, text, 6);
+    return name;
+}
+
+/* 0: not a marker; 1: the row above the entries; 2: the row below them. */
+static int marker_kind(const char *text, size_t size) {
+    if (size != 5 || !memory_equal(text, "EO_", 3)) return 0;
+    return text[3] == 'U' ? 1 : text[3] == 'D' ? 2 : 0;
+}
+
+/* The rows ANNA shows for `list` (at most ROWS + 2). *scrolls: whether it has the markers. */
+static unsigned window_rows(int list, Name *rows, int *scrolls, unsigned *total_out) {
+    static Name all[MAX_SHOWN];
+    unsigned total = list_names(list, all, MAX_SHOWN);
+    if (total_out) *total_out = total;
+    int scrolling = list >= 0 && total > ROWS;
+    if (scrolls) *scrolls = scrolling;
+    if (!scrolling) {
+        for (unsigned i = 0; i < total; ++i) rows[i] = all[i];
+        return total;
+    }
+    int first = list == current ? win_first : 0;
+    if (first > (int)total - WINDOW) first = (int)total - WINDOW;
+    if (first < 0) first = 0;
+    if (list == current) win_first = first;
+    rows[0] = marker_name(first > 0 ? "EO_UP" : "EO_UN");
+    for (int i = 0; i < WINDOW; ++i) rows[1 + i] = all[first + i];
+    rows[WINDOW + 1] = marker_name(first + WINDOW < (int)total ? "EO_DN" : "EO_DX");
+    return WINDOW + 2;
 }
 
 /* The main list (and only it) carries these native commands. */
@@ -239,11 +289,11 @@ static void anna_clear_menu(void *menu) {
         !memory_read_pointer(component + 0xc0, (void **)&end) || begin >= end)
         return;
     /* Any list but one of ours (EO_ names) leaves our lists. */
-    if (begin->size < 3 || !memory_equal(msvc_text(begin), "EO_", 3)) current = -1;
+    if (begin->size < 3 || !memory_equal(msvc_text(begin), "EO_", 3)) set_current(-1);
     if (!top_level(begin, end)) return;
-    static Name names[MAX_SHOWN];
-    unsigned count = list_names(-1, names, MAX_SHOWN);
-    for (unsigned i = 0; i < count; ++i) add_option(menu, &names[i]);
+    Name rows[ROWS + 2];
+    unsigned count = window_rows(-1, rows, NULL, NULL);
+    for (unsigned i = 0; i < count; ++i) add_option(menu, &rows[i]);
 }
 
 /* UIString text lives at +0x28 (length +0x30). Without a string table the base destructor frees it
@@ -266,35 +316,65 @@ static void ui_text(void **output, const char *utf8) {
 
 static void **anna_make_label(void *self, void **output, const MsvcString *name) {
     int index = entry_of(name);
-    if (index < 0) return make_label(self, output, name);
+    if (index < 0) {
+        const char *text = msvc_text(name);
+        int kind = marker_kind(text, name->size);
+        if (!kind) return make_label(self, output, name);
+        ui_text(output, kind == 1 ? (text[4] == 'P' ? "ANNA_MORE_UP" : "ANNA_MORE_NONE")
+                                  : (text[4] == 'N' ? "ANNA_MORE_DOWN" : "ANNA_MORE_NONE"));
+        return output;
+    }
     ui_text(output, label_of(&entries[index]));
     return output;
 }
 
-/* Rebuilds the shown list in place. AddOption keeps the highlight at the menu's restore index
-   (+0x21c) while its restore flag (+0x21a) is set; each option's highlight flag is at +0x40 of the
-   items in [[menu+0x210]+0x50]+0x28 -> +0x28. A new list (first) highlights its first entry. */
-static void relabel(void *component, int first) {
+/* The menu's items: [[menu+0x210]+0x50]+0x28 -> +0x28; each one's highlight flag is at +0x40. */
+static int menu_items(void *component, unsigned char **menu_out, unsigned char ***items_out) {
     unsigned char *menu, *view, *collection, *list, **items;
     if (!component || !memory_read_pointer((unsigned char *)component + 0xf8, (void **)&menu) || !menu ||
         !memory_read_pointer(menu + 0x210, (void **)&view) || !view ||
         !memory_read_pointer(view + 0x50, (void **)&collection) || !collection ||
         !memory_read_pointer(collection + 0x28, (void **)&list) || !list ||
         !memory_read_pointer(list + 0x28, (void **)&items))
-        return;
-    static Name names[MAX_SHOWN];
-    int highlighted = 0, count = (int)list_names(current, names, MAX_SHOWN);
-    for (int i = 0; !first && items && i < count; ++i) {
+        return 0;
+    *menu_out = menu;
+    *items_out = items;
+    return 1;
+}
+
+/* The row of the first `count` that is highlighted, else -1. */
+static int highlighted_row(void *component, int count) {
+    unsigned char *menu, **items;
+    if (!menu_items(component, &menu, &items) || !items) return -1;
+    for (int i = 0; i < count; ++i) {
         unsigned char *item, selected;
         if (memory_read_pointer(items + i, (void **)&item) && item && memory_read(item + 0x40, &selected, 1) &&
             selected)
-            highlighted = i;
+            return i;
     }
+    return -1;
+}
+
+/* Rebuilds the shown list in place. AddOption keeps the highlight at the menu's restore index (+0x21c)
+   while its restore flag (+0x21a) is set. row: the row to highlight; -1 keeps the highlighted one; -2 is a
+   new list, which highlights its first entry (the row under the marker, if it scrolls). */
+static void relabel_to(void *component, int row) {
+    unsigned char *menu, **items;
+    if (!menu_items(component, &menu, &items)) return;
+    Name rows[ROWS + 2];
+    int scrolls;
+    int count = (int)window_rows(current, rows, &scrolls, NULL);
+    int highlighted = row >= 0 ? row : row == -2 ? (scrolls ? 1 : 0) : (items ? highlighted_row(component, count) : -1);
+    if (highlighted < 0) highlighted = 0;
+    if (highlighted >= count) highlighted = count ? count - 1 : 0;
+    win_row = !count || (scrolls && marker_kind(rows[highlighted].text, rows[highlighted].size)) ? -1 : highlighted;
     ((void (*)(void *))(image + 0x10b2810))(menu);
     *(int *)(menu + 0x21c) = highlighted;
     menu[0x21a] = 1;
-    for (int k = 0; k < count; ++k) add_option(menu, &names[k]);
+    for (int k = 0; k < count; ++k) add_option(menu, &rows[k]);
 }
+
+static void relabel(void *component, int first) { relabel_to(component, first ? -2 : -1); }
 
 static void assign_carrier(MsvcString *output) {
     MsvcString text = {{{0}}, sizeof(carrier) - 1, sizeof(carrier) - 1};
@@ -312,10 +392,10 @@ static MsvcString *anna_selected_name(void *component, MsvcString *output) {
     if (is_list(entry)) {
         if (!entry->parent[0]) {
             /* From the main list: the follow-up list ANNA opens is replaced with this list. */
-            current = index;
+            set_current(index);
             follow_up_until = GetTickCount64() + 2000;
         } else {
-            current = index;
+            set_current(index);
             relabel(component, 1);
         }
         assign_carrier(output);
@@ -328,7 +408,7 @@ static MsvcString *anna_selected_name(void *component, MsvcString *output) {
         /* Back inside a list goes to the main list; Back there closes her. */
         close_until = GetTickCount64() + 1000;
         InterlockedExchange(&close_pending, entry->parent[0] ? 2 : 1);
-        current = -1;
+        set_current(-1);
         /* An empty name dispatches nothing natively; the next Back query says Back, which closes her. */
         ((char *)msvc_text(output))[0] = 0;
         output->size = 0;
@@ -343,13 +423,13 @@ static unsigned char anna_back_pressed(void *input, unsigned context, unsigned a
     if (close_pending > 0 && GetTickCount64() > close_until) InterlockedExchange(&close_pending, 0);
     if (close_pending > 0) {
         InterlockedDecrement(&close_pending);
-        current = -1;
+        set_current(-1);
         return 1;
     }
     if (!pressed || current < 0 || !entries[current].parent[0] || !control_component) return pressed;
     int parent = find(entries[current].parent);
     if (parent < 0) return pressed;
-    current = parent;
+    set_current(parent);
     relabel(control_component, 1);
     return 0;
 }
@@ -367,8 +447,8 @@ static void replace_follow_up(void *component) {
         return;
     int armed = GetTickCount64() < follow_up_until;
     follow_up_until = 0;
-    static Name list[MAX_SHOWN];
-    unsigned count = armed && current >= 0 ? list_names(current, list, MAX_SHOWN) : 0;
+    Name list[ROWS + 2];
+    unsigned count = armed && current >= 0 ? window_rows(current, list, NULL, NULL) : 0;
     if (!count) return; /* the native follow-up stays */
     for (MsvcString *name = begin; name < end; ++name) free_game_string(name);
     if ((size_t)(capacity - begin) < count) {
@@ -452,42 +532,34 @@ static unsigned char *race_menu(void) {
 }
 
 static void race_restore(void *menu) {
-    static Name names[MAX_SHOWN];
-    unsigned count = list_names(current, names, MAX_SHOWN);
-    for (unsigned i = 0; i < count; ++i) add_option(menu, &names[i]);
+    Name rows[ROWS + 2];
+    unsigned count = window_rows(current, rows, NULL, NULL);
+    for (unsigned i = 0; i < count; ++i) add_option(menu, &rows[i]);
 }
 
 /* The highlighted entry: the menu items' highlight flag (+0x40), in the order the list was added. */
 static int race_highlighted(void) {
-    unsigned char *menu = race_menu(), *view, *collection, *list, **items;
-    if (!menu || !memory_read_pointer(menu + 0x210, (void **)&view) ||
-        !memory_read_pointer(view + 0x50, (void **)&collection) ||
-        !memory_read_pointer(collection + 0x28, (void **)&list) || !memory_read_pointer(list + 0x28, (void **)&items))
-        return -1;
-    static Name names[MAX_SHOWN];
-    int count = (int)list_names(current, names, MAX_SHOWN);
-    for (int i = 0; i < count; ++i) {
-        unsigned char *item, selected;
-        if (memory_read_pointer(items + i, (void **)&item) && memory_read(item + 0x40, &selected, 1) && selected) {
-            MsvcString name = {{{0}}, names[i].size, 15};
-            memory_copy(name.text, names[i].text, names[i].size + 1);
-            return entry_of(&name);
-        }
-    }
-    return -1;
+    if (!race_menu()) return -1;
+    Name rows[ROWS + 2];
+    int count = (int)window_rows(current, rows, NULL, NULL);
+    int row = highlighted_row(hud_component, count);
+    if (row < 0) return -1;
+    MsvcString name = {{{0}}, rows[row].size, 15};
+    memory_copy(name.text, rows[row].text, rows[row].size + 1);
+    return entry_of(&name); /* a marker row is no entry: -1 */
 }
 
 static void race_close(void) {
     race_open = 0;
     race_guard_until = GetTickCount64() + 250;
-    current = -1;
+    set_current(-1);
     if (hud_component) ((void (*)(void *))(image + 0xab8160))(hud_component);
 }
 
 static void race_show(int first) {
     if (!race_menu()) return;
-    static Name names[MAX_SHOWN];
-    if (!list_names(current, names, MAX_SHOWN)) {
+    Name rows[ROWS + 2];
+    if (!window_rows(current, rows, NULL, NULL)) {
         race_close();
         return;
     }
@@ -529,7 +601,7 @@ static void race_frame(void) {
     if (!race_open) {
         if (!(pressed & PAD_DPAD_DOWN)) return;
         static Name names[MAX_SHOWN];
-        current = -1;
+        set_current(-1);
         if (!list_names(-1, names, MAX_SHOWN)) return;
         race_open = 1;
         race_idle_since = now;
@@ -548,7 +620,7 @@ static void race_frame(void) {
         int parent = current >= 0 && entries[current].parent[0] ? find(entries[current].parent) : -1;
         if (current < 0) race_close();
         else {
-            current = parent;
+            set_current(parent);
             race_show(1);
         }
     }
@@ -557,7 +629,7 @@ static void race_frame(void) {
         if (index < 0) return;
         Entry *entry = &entries[index];
         if (is_list(entry)) {
-            current = index;
+            set_current(index);
             race_show(1);
         } else if (entry->stays_open) {
             entry->on_choose(entry->user, entry->key);
@@ -575,12 +647,47 @@ int menu_is_open(void) {
            memory_read(menu + 0x219, &open, 1) && open;
 }
 
+/* The highlight moved onto a marker row: scroll that way and put it back on an entry. At an end it wraps. */
+static void scroll_tick(void) {
+    if (!hud_component || !menu_is_open()) {
+        win_row = -1;
+        return;
+    }
+    Name rows[ROWS + 2];
+    int scrolls;
+    unsigned total;
+    int count = (int)window_rows(current, rows, &scrolls, &total);
+    if (!scrolls) {
+        win_row = -1;
+        return;
+    }
+    int row = highlighted_row(hud_component, count);
+    if (row < 0) return;
+    int kind = marker_kind(rows[row].text, rows[row].size);
+    if (!kind) {
+        win_row = row;
+        return;
+    }
+    int target = 1;
+    if (win_row >= 0) {
+        if (kind == 1) {
+            if (win_first > 0) --win_first;
+            else win_first = (int)total - WINDOW, target = WINDOW;
+        } else {
+            if (win_first + WINDOW < (int)total) ++win_first, target = WINDOW;
+            else win_first = 0;
+        }
+    }
+    relabel_to(hud_component, target);
+}
+
 void menu_relabel(void) {
     if (current >= 0 && control_component && menu_is_open()) relabel(control_component, 0);
 }
 
 void menu_frame(void) {
     race_frame();
+    scroll_tick();
     LONG index = InterlockedExchange(&pending, -1);
     if (index >= 0 && index < entry_count && entries[index].on_choose)
         entries[index].on_choose(entries[index].user, entries[index].key);

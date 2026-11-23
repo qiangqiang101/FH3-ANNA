@@ -196,18 +196,26 @@ anna->add_entry(&e);
   for entries that only make sense then, or to leave the car's controls alone while ANNA drives.
 - `anna->is_open()` is 1 while ANNA's menu is on screen. Use it to keep your mod's own D-pad handling out of her way.
 
+## Long lists
+
+A list of up to 7 entries shows whole. A longer one shows 6 at a time, and two rows frame them: an arrow above and below (blank at an
+end with nothing more that way). D-pad Up past the first entry goes to the last, and Down past the last goes to
+the first. The arrows need `media\UI\Controls\HUDAnnaControl.xaml` from ANNA's folder (made by
+`tools/make_hud_xaml.py` from the game's own file). ANNA's main list isn't windowed: the game's own commands
+follow it, so keep your main-list entries few.
+
 ## Limits
 
 | What | Limit |
 |---|---|
-| Entries, all mods together (ANNA's own included) | 256 |
-| Entries shown in one list | 32 |
+| Entries, all mods together (ANNA's own included) | 32767 |
+| Entries in one list | 256 (more than 7 show 6 at a time and scroll) |
 | Key | 63 characters: `a-z A-Z 0-9 . _ -` |
 | Label | 127 bytes of UTF-8 |
 | Lists inside lists | 8 deep |
 
 `add_entry` returns 0 when the key is taken, the key or parent is invalid, `label` is missing, `size` is wrong, or
-the 256 entries are used up.
+the 32767 entries are used up.
 
 ## The examples
 

@@ -1,0 +1,631 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:ForzaUI" 
+    xmlns:System="clr-namespace:System;assembly=mscorlib"
+    xmlns:ed="http://schemas.microsoft.com/expression/2010/drawing"
+    mc:Ignorable="d"
+    x:Class="ForzaUI.HUDAnnaControl"
+    x:Name="UserControl"
+    >
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <!--
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/Anthem/Shared_Hud.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            -->
+            <Color x:Key="A_Color_Minimap_DestinationIcon">#FFFFFFFF</Color>
+            <Color x:Key="A_Color_Minimap_EdgeInactive">#1AFFFFFF</Color>
+            <Color x:Key="A_Color_Minimap_EdgeActive">#FF00d2ff</Color>
+
+            <Color x:Key="A_Color_ItemSelected">#FF00c6ff</Color>
+            <Color x:Key="A_Color_ItemHighlighted">#FF00c6ff</Color>
+            <System:Double x:Key="A_Double_SpeechOptionWidth">214</System:Double>
+            <System:Double x:Key="A_Double_ANNAStatusFadedOpacity">0.6</System:Double>
+
+            <SolidColorBrush x:Key="A_Brush_ANNAButtonBorder" Color="{StaticResource A_Color_Minimap_EdgeInactive}"/>
+
+            <SolidColorBrush x:Key="A_Brush_Minimap_EdgeInactive" Color="{StaticResource A_Color_Minimap_EdgeInactive}"/>
+
+            <ImageBrush x:Key="A_Brush_Outline" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/ANNA_Glow_On.png"/>
+            <ImageBrush x:Key="A_Brush_Outline_ANNAOnly" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/ANNA_Glow_ANNAOnly.png"/>
+            <ImageBrush x:Key="A_Brush_OutlineMaskGradient" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/VerticalGradient.png"/>
+
+            <ImageBrush x:Key="A_Brush_MapOpacity" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/Minimap_OpacityMask.png"/>
+            <ImageBrush x:Key="A_Brush_MapOpacity_WithDestination" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/Minimap_OpacityMask_WithDestination.png"/>
+            <ImageBrush x:Key="A_Brush_MapOpacity_MapOnly" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/Minimap_OpacityMask_MapOnly.png"/>
+            <ImageBrush x:Key="A_Brush_MapOpacity_MapOnlyWithDestination" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/Minimap_OpacityMask_MapOnly_WithDestination.png"/>
+
+            <Style x:Key="A_Style_FZMaterial_MapOpacity" TargetType="{x:Type local:FZMaterial}">
+                <Setter Property="Color" Value="#00000000"/>
+                <Setter Property="OpacityMask" Value="{StaticResource A_Brush_MapOpacity}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}" Value="{x:Static Visibility.Visible}">
+                        <Setter Property="OpacityMask" Value="{StaticResource A_Brush_MapOpacity_WithDestination}"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="2">
+                        <Setter Property="OpacityMask" Value="{StaticResource A_Brush_MapOpacity_MapOnly}"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding AnnaDisplayMode}" Value="2"/>
+                            <Condition Binding="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}" Value="{x:Static Visibility.Visible}"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="OpacityMask" Value="{StaticResource A_Brush_MapOpacity_MapOnlyWithDestination}"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- pgPaulP - value converters to set the render tranform tranlation based on an angle in degrees. -->
+            <local:AnglePositionConverter x:Key="A_AnglePositionConverter_NorthX" Cosine="False" ResultScale="-125" /> 
+            <local:AnglePositionConverter x:Key="A_AnglePositionConverter_NorthY" Cosine="True" ResultScale="-92" />
+
+            <Style x:Key="A_Arc_Minimap_EdgeInactive" TargetType="{x:Type ed:Arc}">
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="Margin" Value="6,10,6,4"/>
+                <Setter Property="Stretch" Value="None"/>
+                <Setter Property="Stroke" Value="{StaticResource A_Brush_Minimap_EdgeInactive}"/>
+                <Setter Property="StrokeThickness" Value="3"/>
+            </Style>
+
+            <ExponentialEase x:Key="A_EasingFunction_EaseInOut" EasingMode="EaseInOut"/>
+            <ExponentialEase x:Key="A_EasingFunction_EaseIn" EasingMode="EaseIn"/>
+            <ExponentialEase x:Key="A_EasingFunction_EaseOut" EasingMode="EaseOut"/>
+
+            <Style x:Key="A_Style_FrameworkElement_Destination" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}" Value="{x:Static Visibility.Visible}">
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <BeginStoryboard.Storyboard>
+                                    <Storyboard>
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity" Storyboard.TargetName="{x:Null}">
+                                            <DiscreteDoubleKeyFrame KeyTime="0:0:0.0" Value="0"/>
+                                            <DiscreteDoubleKeyFrame KeyTime="0:0:0.175" Value="0"/>
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="1" EasingFunction="{StaticResource A_EasingFunction_EaseInOut}"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard.Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Arc_Minimap_EdgeInactive_LHS" TargetType="{x:Type ed:Arc}" BasedOn="{StaticResource A_Arc_Minimap_EdgeInactive}">
+                <Setter Property="StartAngle" Value="213"/>
+                <Setter Property="EndAngle" Value="0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="2">
+                        <Setter Property="StartAngle" Value="180"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}" Value="{x:Static Visibility.Visible}">
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <BeginStoryboard.Storyboard>
+                                    <Storyboard>
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(ed:Arc.EndAngle)" Storyboard.TargetName="{x:Null}">
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="-35" EasingFunction="{StaticResource A_EasingFunction_EaseOut}"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard.Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                                <BeginStoryboard.Storyboard>
+                                    <Storyboard>
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(ed:Arc.EndAngle)" Storyboard.TargetName="{x:Null}">
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0" EasingFunction="{StaticResource A_EasingFunction_EaseOut}"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard.Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.ExitActions>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Arc_Minimap_EdgeInactive_RHS" TargetType="{x:Type ed:Arc}" BasedOn="{StaticResource A_Arc_Minimap_EdgeInactive}">
+                <Setter Property="StartAngle" Value="0"/>
+                <Setter Property="EndAngle" Value="148"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="2">
+                        <Setter Property="EndAngle" Value="180"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}" Value="{x:Static Visibility.Visible}">
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <BeginStoryboard.Storyboard>
+                                    <Storyboard>
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(ed:Arc.StartAngle)" Storyboard.TargetName="{x:Null}">
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="35" EasingFunction="{StaticResource A_EasingFunction_EaseOut}"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard.Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                                <BeginStoryboard.Storyboard>
+                                    <Storyboard>
+                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(ed:Arc.StartAngle)" Storyboard.TargetName="{x:Null}">
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0" EasingFunction="{StaticResource A_EasingFunction_EaseOut}"/>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard.Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.ExitActions>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- pgPaulP - Data template for the speech items in the anna popup -->
+            <DataTemplate x:Key="A_DataTemplate_SpeechItem">
+                <DockPanel Margin="0,1.5,0,1.5">
+                    <local:FZMaterial x:Name="Dpad" Style="{StaticResource A_Style_FZMaterial_GlassHudItem}" Margin="3,0,0,0" Width="{StaticResource A_Double_HUDMiniLeaderboard_RowHeight}" Color="{StaticResource A_Color_ItemHighlighted}" Visibility="Hidden" DockPanel.Dock="Right">
+                        <Viewbox Height="28"
+                                 MinWidth="28">
+                            <local:ControllerButtonControl CommandOverride="INPUTCMD_ANNA_SELECT" ContextOverride="INPUTCONTEXT_ANNA" SupportsControllerInput="True" Visibility="Visible" Margin="0" UseAlternateVisualStyle="True" />
+                        </Viewbox>
+                    </local:FZMaterial>
+
+                    <local:FZMaterial x:Name="Item" Style="{StaticResource A_Style_FZMaterial_GlassHudItem}">
+                        <Grid>
+                            <local:FZTextBlock x:Name="Label" Text="{Binding Command}" Style="{StaticResource A_Style_FZTextBlock_HudMedium}" Margin="8,0,8,0" VerticalAlignment="Center" HorizontalAlignment="Right" Width="{StaticResource A_Double_SpeechOptionWidth}" />
+                            <local:FZMaterial x:Name="MoreUp" Visibility="Collapsed" ImageSource="/ForzaUI;component/Textures/Anthem/SocialFeedIcons/Scroll_Arrow.png" Width="34" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                <local:FZMaterial.RenderTransform><RotateTransform Angle="180"/></local:FZMaterial.RenderTransform>
+                            </local:FZMaterial>
+                            <local:FZMaterial x:Name="MoreDown" Visibility="Collapsed" ImageSource="/ForzaUI;component/Textures/Anthem/SocialFeedIcons/Scroll_Arrow.png" Width="34" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </local:FZMaterial>
+                </DockPanel>
+
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsHighlighted}"
+                                 Value="True">
+                        <Setter TargetName="Item"
+                                Property="Color"
+                                Value="{StaticResource A_Color_ItemHighlighted}" />
+                        <Setter TargetName="Dpad"
+                                Property="Visibility"
+                                Value="Visible" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSelected}"
+                                 Value="True">
+                        <Setter TargetName="Item"
+                                Property="Color"
+                                Value="{StaticResource A_Color_ItemSelected}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.IsVoiceAvailable, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
+                        Value="True">
+                        <Setter TargetName="Dpad"
+                                Property="Visibility"
+                                Value="Hidden"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Command}" Value="ANNA_MORE_UP">
+                        <Setter TargetName="Item" Property="Height" Value="22"/>
+                        <Setter TargetName="Item" Property="Color" Value="{StaticResource A_Color_HUD_ItemBackground}"/>
+                        <Setter TargetName="Dpad" Property="Height" Value="22"/>
+                        <Setter TargetName="Dpad" Property="Visibility" Value="Hidden"/>
+                        <Setter TargetName="Label" Property="Visibility" Value="Collapsed"/>
+                        <Setter TargetName="MoreUp" Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Command}" Value="ANNA_MORE_DOWN">
+                        <Setter TargetName="Item" Property="Height" Value="22"/>
+                        <Setter TargetName="Item" Property="Color" Value="{StaticResource A_Color_HUD_ItemBackground}"/>
+                        <Setter TargetName="Dpad" Property="Height" Value="22"/>
+                        <Setter TargetName="Dpad" Property="Visibility" Value="Hidden"/>
+                        <Setter TargetName="Label" Property="Visibility" Value="Collapsed"/>
+                        <Setter TargetName="MoreDown" Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Command}" Value="ANNA_MORE_NONE">
+                        <Setter TargetName="Item" Property="Height" Value="22"/>
+                        <Setter TargetName="Item" Property="Color" Value="{StaticResource A_Color_HUD_ItemBackground}"/>
+                        <Setter TargetName="Dpad" Property="Height" Value="22"/>
+                        <Setter TargetName="Dpad" Property="Visibility" Value="Hidden"/>
+                        <Setter TargetName="Label" Property="Visibility" Value="Collapsed"/>
+                        <Setter TargetName="Item" Property="Visibility" Value="Hidden"/>
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+
+            <Storyboard x:Key="A_Storyboard_PlaySleepSoundAndMinimize">
+                <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="ANNAMain">
+                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.0" Value="0"/>
+                </DoubleAnimationUsingKeyFrames>
+                <StringAnimationUsingKeyFrames Storyboard.TargetName="AnnaSleep" Storyboard.TargetProperty="(local:AudioEvent.SoundName)">
+                    <DiscreteStringKeyFrame KeyTime="0:0:0.0" Value="" />
+                    <DiscreteStringKeyFrame KeyTime="0:0:0.05" Value="/Master/UI/ANNA/HZ3_SFX_HUD_ANNA_Sleep_01" />
+                </StringAnimationUsingKeyFrames>
+            </Storyboard>
+
+            <Storyboard x:Key="A_Storyboard_PlayWakeSoundAndShowFull">
+                <StringAnimationUsingKeyFrames Storyboard.TargetName="AnnaWake" Storyboard.TargetProperty="(local:AudioEvent.SoundName)">
+                    <DiscreteStringKeyFrame KeyTime="0:0:0.0" Value="" />
+                    <DiscreteStringKeyFrame KeyTime="0:0:0.01" Value="/Master/UI/ANNA/HZ3_SFX_HUD_ANNA_Wake_01" />
+                </StringAnimationUsingKeyFrames>
+                <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutEnd)" Storyboard.TargetName="EdgeGlow_On">
+                    <EasingSingleKeyFrame KeyTime="0:0:0.5" Value="0.8" EasingFunction="{StaticResource A_EasingFunction_EaseInOut}"/>
+                </SingleAnimationUsingKeyFrames>
+                <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutStart)" Storyboard.TargetName="EdgeGlow_On">
+                    <EasingSingleKeyFrame KeyTime="0:0:0.5" Value="0.65" EasingFunction="{StaticResource A_EasingFunction_EaseInOut}"/>
+                </SingleAnimationUsingKeyFrames>
+                <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutEnd)" Storyboard.TargetName="EdgeGlow_ANNAOnly">
+                    <EasingSingleKeyFrame KeyTime="0:0:0.4" Value="1" EasingFunction="{StaticResource A_EasingFunction_EaseInOut}"/>
+                </SingleAnimationUsingKeyFrames>
+                <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutStart)" Storyboard.TargetName="EdgeGlow_ANNAOnly">
+                    <DiscreteSingleKeyFrame KeyTime="0:0:0.1" Value="0"/>
+                    <EasingSingleKeyFrame KeyTime="0:0:0.5" Value="1" EasingFunction="{StaticResource A_EasingFunction_EaseInOut}"/>
+                </SingleAnimationUsingKeyFrames>
+                <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(local:FZMaterial.Color)" Storyboard.TargetName="ANNAMic">
+                    <EasingColorKeyFrame KeyTime="0:0:0.5" Value="{StaticResource A_Color_Minimap_EdgeActive}" EasingFunction="{StaticResource A_EasingFunction_EaseOut}"/>
+                </ColorAnimationUsingKeyFrames>
+            </Storyboard>
+
+            <Style x:Key="A_Style_ANNAStatusMarkup_ANNA" TargetType="{x:Type Control}">
+                <Setter Property="Margin" Value="0,0,0,7"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate>
+                            <local:FZMaterial ImageSource="/ForzaUI;component/Textures/Anthem/HUD/ANNA_Logo.png" Width="59" Height="18"/>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="A_Style_ANNAStatusMarkup_ANNA_FADED" TargetType="{x:Type Control}" BasedOn="{StaticResource A_Style_ANNAStatusMarkup_ANNA}">
+                <Setter Property="Opacity" Value="{StaticResource A_Double_ANNAStatusFadedOpacity}"/>
+            </Style>
+
+            <Style x:Key="A_Style_FrameworkElement_ANNAAvailable_DPad" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="{Binding IsAvailable, Converter={StaticResource A_FZBooleanToVisibilityConverter}}"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsVoiceAvailable}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding HasValidInputCmd}"
+                                 Value="False">
+                        <Setter Property="Visibility"
+                                Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FrameworkElement_ANNAUnavailable"
+                   TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility"
+                        Value="{Binding IsAvailable, Converter={StaticResource A_FZBooleanToVisibilityConverter_Inverse}}" />
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding HasValidInputCmd}"
+                                        Value="False" />
+                            <Condition Binding="{Binding IsVoiceAvailable}"
+                                       Value="False" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility"
+                                Value="Visible" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FrameworkElement_HideIfANNAOnly" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="Visible"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="1">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            
+            <Style x:Key="A_Style_FrameworkElement_HideIfMapOnly" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="Visible"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="2">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FrameworkElement_HideIfOff" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="Visible"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="0">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FrameworkElement_ShowIfANNAOnly" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="1">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FrameworkElement_ShowIfOn" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="3">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FZMaterial_ANNAOptions_Mask" TargetType="{x:Type local:FZMaterial}">
+                <Setter Property="Height" Value="300"/>
+                <Setter Property="Width" Value="300"/>
+                <Setter Property="Margin" Value="31,0,0,45"/>
+                <Setter Property="Color" Value="Transparent"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="3">
+                        <Setter Property="HorizontalAlignment" Value="Left"/>
+                        <Setter Property="VerticalAlignment" Value="Bottom"/>
+                        <Setter Property="Margin" Value="-4,7,0,-12"/>
+                        <Setter Property="Width" Value="430"/>
+                        <Setter Property="OpacityMask">
+                            <Setter.Value>
+                                <RadialGradientBrush GradientOrigin="0.259,0.5" Center="0.259,0.5" RadiusX="0.267" RadiusY="0.517">
+                                    <GradientStop Color="#00000000" Offset="0"/>
+                                    <GradientStop Color="#00000000" Offset="0.99"/>
+                                    <GradientStop Color="#FF000000" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Setter.Value>
+                        </Setter>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_FrameworkElement_ANNAOptions" TargetType="{x:Type FrameworkElement}">
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AnnaDisplayMode}" Value="3">
+                        <Setter Property="Width" Value="430"/>
+                        <Setter Property="Margin" Value="150,0,0,0"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="A_Style_FZMaterial_EdgeGlow" TargetType="{x:Type local:FZMaterial}" >
+                <Setter Property="Preset" Value="{StaticResource A_FZMaterialPresetAdditive}"/>
+                <Setter Property="Width" Value="310"/>
+                <Setter Property="Height" Value="310"/>
+                <Setter Property="Margin" Value="-5"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <local:TextureMaskEffect Texture="{StaticResource A_Brush_Outline}" Mask="{StaticResource A_Brush_OutlineMaskGradient}" Color="{StaticResource A_Color_Minimap_EdgeActive}" FadeInStart="0" FadeInEnd="0" FadeOutStart="0" FadeOutEnd="0"/>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="A_Style_FZMaterial_EdgeGlow_ANNAOnly" TargetType="{x:Type local:FZMaterial}" BasedOn="{StaticResource A_Style_FZMaterial_EdgeGlow}">
+                <Setter Property="Width" Value="179"/>
+                <Setter Property="Height" Value="54"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <local:TextureMaskEffect Texture="{StaticResource A_Brush_Outline_ANNAOnly}" Mask="{StaticResource A_Brush_OutlineMaskGradient}" Color="{StaticResource A_Color_Minimap_EdgeActive}" FadeInStart="0" FadeInEnd="0" FadeOutStart="0" FadeOutEnd="0"/>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid x:Name="LayoutRoot" Style="{StaticResource A_Style_FrameworkElement_HideIfOff}">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="VisualStateGroup">
+                <VisualState x:Name="ShowMinimized">
+                    <Storyboard>
+                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="ANNAMain">
+                            <DiscreteDoubleKeyFrame KeyTime="0:0:0.0" Value="0"/>
+                        </DoubleAnimationUsingKeyFrames>
+                    </Storyboard>
+                </VisualState>
+                <VisualState x:Name="Selected">
+                    <Storyboard>
+                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="ANNAMain">
+                            <EasingDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+                        </DoubleAnimationUsingKeyFrames>
+                        <StringAnimationUsingKeyFrames Storyboard.TargetProperty="(local:EventFire.EventName)" Storyboard.TargetName="EventFire">
+                            <DiscreteStringKeyFrame KeyTime="0:0:0" Value="Reset"/>
+                        </StringAnimationUsingKeyFrames>
+                        <StringAnimationUsingKeyFrames Storyboard.TargetProperty="(local:EventFire.EventName)" Storyboard.TargetName="EventFire">
+                            <DiscreteStringKeyFrame KeyTime="0:0:0.25" Value="SelectComplete"/>
+                        </StringAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutEnd)" Storyboard.TargetName="EdgeGlow_On">
+                            <DiscreteSingleKeyFrame KeyTime="0" Value="0.8"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutStart)" Storyboard.TargetName="EdgeGlow_On">
+                            <DiscreteSingleKeyFrame KeyTime="0:0:0.0" Value="0.65"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutEnd)" Storyboard.TargetName="EdgeGlow_ANNAOnly">
+                            <DiscreteSingleKeyFrame KeyTime="0" Value="1"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutStart)" Storyboard.TargetName="EdgeGlow_ANNAOnly">
+                            <DiscreteSingleKeyFrame KeyTime="0:0:0.0" Value="1"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(local:FZMaterial.Color)" Storyboard.TargetName="ANNAMic">
+                            <DiscreteColorKeyFrame KeyTime="0:0:0.0" Value="{StaticResource A_Color_Minimap_EdgeActive}"/>
+                        </ColorAnimationUsingKeyFrames>
+                        <StringAnimationUsingKeyFrames Storyboard.TargetName="AnnaSelect" Storyboard.TargetProperty="(local:AudioEvent.SoundName)">
+                            <DiscreteStringKeyFrame KeyTime="0:0:0.0" Value="" />
+                            <DiscreteStringKeyFrame KeyTime="0:0:0.01" Value="/Master/UI/ANNA/HZ3_SFX_HUD_ANNA_Select_01" />
+                        </StringAnimationUsingKeyFrames>
+                    </Storyboard>
+                </VisualState>
+                <VisualState x:Name="ShowFull">
+                    <Storyboard>
+                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="ANNAMain">
+                            <EasingDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+                        </DoubleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutEnd)" Storyboard.TargetName="EdgeGlow_On">
+                            <DiscreteSingleKeyFrame KeyTime="0:0:0.0" Value="0.8"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutStart)" Storyboard.TargetName="EdgeGlow_On">
+                            <DiscreteSingleKeyFrame KeyTime="0:0:0.0" Value="0.65"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutEnd)" Storyboard.TargetName="EdgeGlow_ANNAOnly">
+                            <DiscreteSingleKeyFrame KeyTime="0:0:0.0" Value="1"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <SingleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Effect).(FadeOutStart)" Storyboard.TargetName="EdgeGlow_ANNAOnly">
+                            <DiscreteSingleKeyFrame KeyTime="0:0:0.0" Value="1"/>
+                        </SingleAnimationUsingKeyFrames>
+                        <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(local:FZMaterial.Color)" Storyboard.TargetName="ANNAMic">
+                            <DiscreteColorKeyFrame KeyTime="0:0:0.0" Value="{StaticResource A_Color_Minimap_EdgeActive}"/>
+                        </ColorAnimationUsingKeyFrames>
+                    </Storyboard>
+                </VisualState>
+                <VisualState x:Name="Hide">
+                    <Storyboard>
+                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="LayoutRoot" Duration="0:0:1">
+                            <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                        </DoubleAnimationUsingKeyFrames>
+                    </Storyboard>
+                </VisualState>
+                <VisualStateGroup.Transitions>
+                    <VisualTransition GeneratedDuration="0:0:0.5" From="ShowFull" To="ShowMinimized" Storyboard="{StaticResource A_Storyboard_PlaySleepSoundAndMinimize}" />
+                    <VisualTransition GeneratedDuration="0:0:0.5" From="ShowMinimized" To="ShowFull" Storyboard="{StaticResource A_Storyboard_PlayWakeSoundAndShowFull}" />
+                </VisualStateGroup.Transitions>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <Decorator x:Name="HUDAnnaControl_MiniMap" Style="{StaticResource A_Style_FrameworkElement_HideIfANNAOnly}">
+            <Grid Width="300" Height="300" HorizontalAlignment="Left" Margin="-4,0,0,-12">
+                <ed:Arc x:Name="ArcLHS" Style="{StaticResource A_Arc_Minimap_EdgeInactive_LHS}"/>
+                <ed:Arc x:Name="ArcRHS" Style="{StaticResource A_Arc_Minimap_EdgeInactive_RHS}"/>
+                <Grid>
+                    <StackPanel Style="{StaticResource A_Style_FrameworkElement_Destination}" MinHeight="32" Height="Auto" Orientation="Horizontal" VerticalAlignment="Top" Visibility="{Binding DestinationDistance, Converter={StaticResource A_StringVisConverter}}" HorizontalAlignment="Center" Margin="-1.5,11,0,0">
+                        <local:FZMaterial Color="{StaticResource A_Color_Minimap_DestinationIcon}" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/MinimapWaypointIcon.png" Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,-2,8,0"/>
+                        <local:FZTextBlock Text="{Binding DestinationDistance, Converter={StaticResource A_StringToUpper}}" Style="{StaticResource A_Style_FZTextBlock_HudMedium}" FontSize="32" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2,-2,0,0"/>
+                    </StackPanel>
+
+                    <local:FZMaterial Style="{StaticResource A_Style_FZMaterial_MapOpacity}">
+                        <local:MapCustomRenderElement Alpha="1.0" MapId="default" x:Name="mapCustomRenderElement">
+                            <local:MapCustomRenderElement.MapView>
+                                <local:MapViewControllerTrackingMiniMap IsRotatedToCarHeading="true"
+                                                                        MinSpeed="2.0"
+                                                                        MaxSpeed="50.0"
+                                                                        MinDistance="300.0"
+                                                                        MaxDistance="500.0"
+                                                                        MinFOV="55.0"
+                                                                        MaxFOV="55.0"
+                                                                        MinElevation="60.0"
+                                                                        MaxElevation="60.0"
+                                                                        PositionInViewportY="-0.3"
+                                                                        PositionInViewportX="0.0"
+                                                                        MaxiumProjectionSize="2400"
+                                                                        ElementToTrack="{Binding ElementToTrack, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type local:HUDAnnaControl}}}" />
+                            </local:MapCustomRenderElement.MapView>
+                        </local:MapCustomRenderElement>
+                    </local:FZMaterial>
+
+                    <local:FZMaterial Width="32" Height="32" VerticalAlignment="Center" HorizontalAlignment="Center" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/NorthIndicator.png" RenderTransformOrigin="0.5,0.5" Margin="0,0,0,0">
+                        <local:FZMaterial.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform/>
+                                <SkewTransform/>
+                                <RotateTransform/>
+                                <TranslateTransform X="{Binding NorthAngle, Converter={StaticResource A_AnglePositionConverter_NorthX}}" Y="{Binding NorthAngle, Converter={StaticResource A_AnglePositionConverter_NorthY}}"/>
+                            </TransformGroup>
+                        </local:FZMaterial.RenderTransform>
+                    </local:FZMaterial>
+                </Grid>
+            </Grid>
+        </Decorator>
+
+        <Decorator x:Name="HUDAnnaControl_ANNAStatus" Style="{StaticResource A_Style_FrameworkElement_HideIfMapOnly}">
+            <Border BorderBrush="{StaticResource A_Brush_ANNAButtonBorder}" CornerRadius="9" BorderThickness="3" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="67,0,0,0" Width="156">
+                <Viewbox Width="142" Height="30" Stretch="Uniform" StretchDirection="DownOnly">
+                    <Grid HorizontalAlignment="Center" Margin="-3,0,0,0">
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsVoiceAvailable, Converter={StaticResource A_FZBooleanToVisibilityConverter}}">
+                            <local:FZMaterial x:Name="ANNAMic" Width="30" Height="30" Margin="0,-4,4,-3" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/ANNA_Mic_Icon_Available.png" Color="White" VerticalAlignment="Top"/>
+                            <local:FZTextBlock local:TextBlockInlineMarkup.Markup="{local:Loc Anna.IDS_Label_Available}" local:TextBlockInlineMarkup.ResourceBaseName="A_Style_ANNAStatusMarkup_" Style="{StaticResource A_Style_FZTextBlock_HudMedium_Tight}" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Style="{StaticResource A_Style_FrameworkElement_ANNAAvailable_DPad}">
+                            <Viewbox Height="25"
+                                     MinWidth="25"
+                                     Margin="0,0,4,0">
+                                <local:ControllerButtonControl CommandOverride="INPUTCMD_ANNA_ACTIVATE" ContextOverride="INPUTCONTEXT_RACING" SupportsControllerInput="True" Visibility="Visible" Margin="0" UseAlternateVisualStyle="True" />
+                            </Viewbox>
+                            <local:FZTextBlock local:TextBlockInlineMarkup.Markup="{local:Loc Anna.IDS_Label_ANNA}" local:TextBlockInlineMarkup.ResourceBaseName="A_Style_ANNAStatusMarkup_" Style="{StaticResource A_Style_FZTextBlock_HudMedium_Tight}" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal"
+                                    Style="{StaticResource A_Style_FrameworkElement_ANNAUnavailable}">
+                            <local:FZMaterial Width="30" Height="30" Margin="0,-4,4,-3" ImageSource="/ForzaUI;component/Textures/Anthem/HUD/ANNA_Mic_Icon_Unavailable.png" Color="White" VerticalAlignment="Top" Opacity="{StaticResource A_Double_ANNAStatusFadedOpacity}"/>
+                            <local:FZTextBlock local:TextBlockInlineMarkup.Markup="{local:Loc Anna.IDS_Label_Unavailable}" local:TextBlockInlineMarkup.ResourceBaseName="A_Style_ANNAStatusMarkup_" Style="{StaticResource A_Style_FZTextBlock_HudMedium_Tight}"  VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Viewbox>
+            </Border>
+        </Decorator>
+
+        <Decorator x:Name="HUDAnnaControl_ANNAOptions" Style="{StaticResource A_Style_FrameworkElement_HideIfMapOnly}">
+            <local:FZMaterial Style="{StaticResource A_Style_FZMaterial_ANNAOptions_Mask}">
+                <StackPanel x:Name="ANNAMain" Style="{StaticResource A_FrameworkElement_ANNAOptions}" Orientation="Vertical">
+                    <Decorator x:Name="ANNAInstruction"
+                        Width="269"
+                        MaxHeight="72"
+                        Margin="0,0,0,6"
+                        HorizontalAlignment="Right"
+                        Visibility="{Binding Instruction, Converter={StaticResource A_StringVisConverter}}">
+                        <local:FZTextBlock Text="{Binding Instruction}"
+                            Style="{StaticResource A_Style_FZTextBlock_HudMedium}"
+                            Stretch="Uniform"
+                            VerticalAlignment="Bottom"
+                            StretchDirection="DownOnly"
+                            TextWrapping="Wrap"
+                            Margin="8,0"/>
+                    </Decorator>
+                    <local:CommonListBox ItemsSource="{Binding OptionsList}" ItemTemplate="{StaticResource A_DataTemplate_SpeechItem}" Background="{x:Null}" BorderBrush="{x:Null}" BorderThickness="0" Margin="0,0,0,0" Style="{x:Null}" VerticalAlignment="Center">
+                        <local:CommonListBox.Template>
+                            <ControlTemplate TargetType="{x:Type local:CommonListBox}">
+                                <StackPanel Orientation="Vertical" IsItemsHost="True"/>
+                            </ControlTemplate>
+                        </local:CommonListBox.Template>
+                        <local:CommonListBox.ItemContainerStyle>
+                            <Style TargetType="{x:Type ListBoxItem}">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                            <ContentPresenter/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </local:CommonListBox.ItemContainerStyle>
+                    </local:CommonListBox>
+                    <Decorator Margin="0,6,0,0"
+                        Height="{Binding ActualHeight, ElementName=ANNAInstruction}"
+                        Visibility="{Binding Instruction, Converter={StaticResource A_StringVisConverter}}"/>
+                </StackPanel>
+            </local:FZMaterial>
+        </Decorator>
+
+        <Decorator x:Name="HUDAnnaControl_EdgeGlow" Style="{StaticResource A_Style_FrameworkElement_ShowIfOn}">
+            <local:FZMaterial x:Name="EdgeGlow_On" Style="{StaticResource A_Style_FZMaterial_EdgeGlow}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-8,0,0,-15"/>
+        </Decorator>
+
+        <Decorator x:Name="HUDAnnaControl_EdgeGlowANNAOnly" Style="{StaticResource A_Style_FrameworkElement_ShowIfANNAOnly}">
+            <local:FZMaterial x:Name="EdgeGlow_ANNAOnly" Style="{StaticResource A_Style_FZMaterial_EdgeGlow_ANNAOnly}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="57,0,0,-10"/>
+        </Decorator>
+
+        <local:EventFire x:Name="EventFire" />
+        <local:AudioEvent x:Name="AnnaWake" />
+        <local:AudioEvent x:Name="AnnaSelect"/>
+        <local:AudioEvent x:Name="AnnaSleep" />
+
+    </Grid>
+</UserControl>
