@@ -36,6 +36,8 @@ jobs:
           mod="dist/package/mods/Forza Horizon 3/ANNA"
           mkdir -p "$mod/plugins"
           sh build.sh "$mod/plugins/ANNA.dll"
+          # The scroll arrows' control (HUDAnnaControl.xaml) goes beside plugins.
+          cp -r media "$mod/media"
           # ANNA writes ANNA.ini on her first start (with the settings FH3_ExtraOptions.ini [Vehicle] had).
 
       - name: Package
