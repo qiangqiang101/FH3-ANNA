@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#define ANNA_VERSION "1.0.0"
+#define ANNA_VERSION "1.0.1"
 
 const FH3PluginContext *host;
 unsigned char *image;

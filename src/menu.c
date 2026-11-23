@@ -409,9 +409,36 @@ static void anna_refresh(void *component, unsigned char flag) {
 }
 
 /* ---- Race mode ----------------------------------------------------------------------------------- */
+static void *game_input;
+
 static unsigned char anna_activate_query(void *input, unsigned context, unsigned action, unsigned char consume) {
     control_seen = GetTickCount64();
+    game_input = input;
     return activate_query(input, context, action, consume);
+}
+
+/* Whether the game's input currently allows gameplay (scope 0), which is what its own action query
+   (0x1a198f0) tests first. The pause menu pushes its own permission record to the front of the input's
+   deque (at +0x38), so while it is open scope 0 is refused. The pause menu also stops the HUD
+   from asking, so without this it would look like race mode. If anything can't be read, say yes. */
+static int gameplay_input(void) {
+    unsigned char *input = game_input;
+    void *first, *queue;
+    unsigned char *table;
+    unsigned long long cap, start, mask_word;
+    unsigned char *block;
+    unsigned mask;
+    if (!input || !memory_read_pointer(input + 0x38, &first) || !memory_read(input + 0x38 + 0x18, &start, 8))
+        return 1;
+    queue = first;
+    if (queue && !memory_read_pointer(queue, &queue)) return 1;
+    if (!queue || !memory_read_pointer((unsigned char *)queue + 8, (void **)&table) ||
+        !memory_read((unsigned char *)queue + 0x10, &cap, 8) || !cap || !table)
+        return 1;
+    if (!memory_read_pointer(table + ((start >> 1) & (cap - 1)) * 8, (void **)&block) || !block) return 1;
+    if (!memory_read(block + (start & 1) * 8 + 4, &mask_word, 4)) return 1;
+    mask = (unsigned)(mask_word & 0xffffffffu);
+    return (mask & 1) != 0;
 }
 
 static int race_mode(void) {
@@ -493,6 +520,7 @@ static void race_frame(void) {
         race_guard_until = GetTickCount64() + 250;
     int racing = race_mode();
     race_ready(racing);
+    if (racing && !gameplay_input()) racing = 0; /* the pause menu is open */
     if (!racing) {
         if (race_open) race_close();
         return;
